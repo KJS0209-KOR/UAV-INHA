@@ -1,0 +1,9 @@
+string id
+geometry_msgs/Point position
+geometry_msgs/Vector3 velocity
+float32 radius
+float32 height
+bool is_static
+bool is_valid
+float32 confidence
+string source_type
