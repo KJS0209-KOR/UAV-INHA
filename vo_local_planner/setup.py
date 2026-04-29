@@ -5,7 +5,7 @@ package_name = 'vo_local_planner'
 setup(
     name=package_name,
     version='0.0.0',
-    packages=find_packages(exclude=['test']),
+    packages=['vo_local_planner'],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+             'vo_planner_test = vo_local_planner.vo_planner_test:main',
+             'controller_test_node = vo_local_planner.controller_test_node:main',
         ],
     },
 )
