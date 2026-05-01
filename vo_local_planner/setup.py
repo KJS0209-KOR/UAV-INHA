@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
              'vo_planner_test = vo_local_planner.vo_planner_test:main',
              'controller_test_node = vo_local_planner.controller_test_node:main',
+             'vo_planner_test2 = vo_local_planner.vo_planner_test2:main',
         ],
     },
 )
