@@ -26,8 +26,8 @@ class VOPlannerTest(Node):
 
         # 👉 그냥 앞으로 가라는 명령
         cmd.linear.x = 0.5
-        cmd.linear.y=0.0
-        cmd.linear.z=0.0
+        cmd.linear.y=0.5
+        cmd.linear.z=0.5
         cmd.angular.z = 0.0
 
         self.cmd_pub.publish(cmd)

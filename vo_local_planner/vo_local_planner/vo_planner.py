@@ -9,6 +9,11 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry #드론의 위치, 속도를 받는 메시지 관련 토픽
 #UBUNTU 들어가서 어떤 메시지 타입이 있는지 다 봐야해!!!
 
+# 장애물 배열 전체를 받기 위한 타입(obstacle_state_publisher와의 연결)
+from uav_interfaces.msg import ObstacleArray, Obstacle
+
+
+
 
 
 
@@ -35,6 +40,18 @@ class VOPlanner(Node):
         # 목표 속도
         self.desired_velocity = np.array([1.0, 0.0])
 
+
+        def obstacle_array_callback(self, msg):
+            # 수신된 장애물의 개수를 터미널에 출력
+            self.get_logger().info(f"수신된 장애물 개수: {len(msg.obstacles)}")
+    
+            for obs in msg.obstacles:
+            # 특정 장애물의 좌표와 속도를 확인
+                self.get_logger().debug(f"ID: {obs.id} | Pos: ({obs.position.x:.2f}, {obs.position.y:.2f}) | Vel: {obs.velocity.x:.2f}")
+    
+            # 데이터를 클래스 변수에 저장
+            self.current_obstacles = msg.obstacles
+
         # subscriber, drone pose를 받는다. from gazebo topic
         self.create_subscription(
             PoseStamped,
@@ -42,24 +59,20 @@ class VOPlanner(Node):
             self.drone_callback,
             10
         )
-        
-        #장애물의 속도 subscribe하기
-        self.twist_sub = self.create_subscription(
-            Twist,
-            '/model/moving_obstacle_1/twist',
-            self.twist_callback,
-            10)
+
+        # vo_planner 노드 내부 예시
+        self.obstacle_sub = self.create_subscription(
+            ObstacleArray,
+            '/obstacle_states',     # 방송 채널 이름 일치
+            self.obstacle_callback, # 데이터를 받으면 실행할 함수
+            10
+        )
+
 
         self.pose = None
         self.vel = None
 
-        self.create_subscription( #장애물의 pose를 받는다.
-            PoseStamped,
-            '/obstacle_pose',
-            self.obstacle_callback,
-            10
-        )
-
+       
         # publisher(로봇에게 속도 명령을 내린다.)
         self.cmd_pub = self.create_publisher(
             Twist,
@@ -79,13 +92,24 @@ class VOPlanner(Node):
             msg.pose.position.x,
             msg.pose.position.y
         ])
+ 
 
-
-    def obstacle_callback(self, msg): #장애물 위치를 받는 함수
-        self.obs_pos = np.array([
-            msg.pose.position.x,
-            msg.pose.position.y
-        ])
+    def obstacle_callback(self, msg):
+   
+    # 1. 장애물 정보를 리스트로 저장 (전체 파악)
+        self.current_obstacles = msg.obstacles 
+    
+    # 2. (선택 사항) 만약 기존 코드(단일 장애물 처리)를 유지하고 싶다면
+    # 가장 가까운 장애물 하나만 골라서 업데이트 할 수도 있습니다.
+        if len(msg.obstacles) > 0:
+        # 드론과 가장 가까운 거리에 있는 장애물을 찾는 로직
+            closest_obs = min(msg.obstacles, key=lambda obs: np.linalg.norm(
+            self.drone_pos - np.array([obs.position.x, obs.position.y])))
+        
+        # 이제 이 하나의 장애물에 대해 위치와 속도를 '동시에' 업데이트
+        self.obs_pos = np.array([closest_obs.position.x, closest_obs.position.y])
+        self.obs_vel = np.array([closest_obs.velocity.x, closest_obs.velocity.y])
+        self.obs_radius = closest_obs.radius
 
 
     def in_vo(self, v):
