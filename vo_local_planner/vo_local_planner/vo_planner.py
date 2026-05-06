@@ -9,6 +9,9 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry #드론의 위치, 속도를 받는 메시지 관련 토픽
 #UBUNTU 들어가서 어떤 메시지 타입이 있는지 다 봐야해!!!
 
+from px4_msgs.msg import VehicleOdometry
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+
 # 장애물 배열 전체를 받기 위한 타입(obstacle_state_publisher와의 연결)
 from uav_interfaces.msg import ObstacleArray, Obstacle
 
@@ -29,9 +32,13 @@ class VOPlanner(Node):
         self.drone_pos = np.array([0.0, 0.0])
         self.drone_vel = np.array([0.0, 0.0])
 
+        self.received_drone_odom = False
+        self.received_obstacles = False
+
         # obstacle pose
         self.obs_pos = np.array([0.0, 0.0])
         self.obs_vel = np.array([0.0, 0.0])
+        self.current_obstacles = []
 
         # robot / obstacle radius
         self.robot_radius = 0.5 #0.4~0.5 사이에서 조절을 해보자.
@@ -52,12 +59,19 @@ class VOPlanner(Node):
             # 데이터를 클래스 변수에 저장
             self.current_obstacles = msg.obstacles
 
+        px4_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         # subscriber, drone pose를 받는다. from gazebo topic
         self.create_subscription(
-            PoseStamped,
-            '/drone_pose',
+            VehicleOdometry,
+            '/fmu/out/vehicle_odometry',
             self.drone_callback,
-            10
+            px4_qos
         )
 
         # vo_planner 노드 내부 예시
@@ -89,15 +103,42 @@ class VOPlanner(Node):
 
     def drone_callback(self, msg):  #drone의 위치를 받는 함수
         self.drone_pos = np.array([
-            msg.pose.position.x,
-            msg.pose.position.y
+            msg.position[0],
+            msg.position[1]
         ])
+
+        self.drone_vel = np.array([
+            msg.velocity[0],
+            msg.velocity[1]
+        ])
+
+        self.received_drone_odom = True
+
+        self.get_logger().info(
+            f"Drone odom received | pos=({self.drone_pos[0]:.2f}, {self.drone_pos[1]:.2f}) | vel=({self.drone_vel[0]:.2f}, {self.drone_vel[1]:.2f})",
+            throttle_duration_sec=1.0
+        )
  
 
     def obstacle_callback(self, msg):
    
     # 1. 장애물 정보를 리스트로 저장 (전체 파악)
         self.current_obstacles = msg.obstacles 
+        self.received_obstacles = True
+
+        obstacle_infos = []
+
+        for obs in msg.obstacles:
+            obstacle_infos.append(
+                f"{obs.id}: pos=({obs.position.x:.2f}, {obs.position.y:.2f}), "
+                f"vel=({obs.velocity.x:.2f}, {obs.velocity.y:.2f}), "
+                f"radius={obs.radius:.2f}, static={obs.is_static}"
+            )
+
+        self.get_logger().info(
+            f"ObstacleArray received | count={len(msg.obstacles)} | " + " | ".join(obstacle_infos),
+            throttle_duration_sec=1.0
+        )
     
     # 2. (선택 사항) 만약 기존 코드(단일 장애물 처리)를 유지하고 싶다면
     # 가장 가까운 장애물 하나만 골라서 업데이트 할 수도 있습니다.
@@ -107,9 +148,9 @@ class VOPlanner(Node):
             self.drone_pos - np.array([obs.position.x, obs.position.y])))
         
         # 이제 이 하나의 장애물에 대해 위치와 속도를 '동시에' 업데이트
-        self.obs_pos = np.array([closest_obs.position.x, closest_obs.position.y])
-        self.obs_vel = np.array([closest_obs.velocity.x, closest_obs.velocity.y])
-        self.obs_radius = closest_obs.radius
+            self.obs_pos = np.array([closest_obs.position.x, closest_obs.position.y])
+            self.obs_vel = np.array([closest_obs.velocity.x, closest_obs.velocity.y])
+            self.obs_radius = closest_obs.radius
 
 
     def in_vo(self, v):
@@ -150,6 +191,20 @@ class VOPlanner(Node):
 
 
     def plan(self): 
+        if not self.received_drone_odom:
+            self.get_logger().warn(
+                "Waiting for /fmu/out/vehicle_odometry...",
+                throttle_duration_sec=2.0
+            )
+            return
+
+        if not self.received_obstacles:
+            self.get_logger().warn(
+                "Waiting for /obstacle_states...",
+                throttle_duration_sec=2.0
+            )
+            return
+
         candidates = self.sample_velocities()
 
         safe_velocities = []
