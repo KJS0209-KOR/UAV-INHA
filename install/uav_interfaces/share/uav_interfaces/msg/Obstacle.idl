@@ -1,0 +1,30 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from uav_interfaces/msg/Obstacle.msg
+// generated code does not contain a copyright notice
+
+#include "geometry_msgs/msg/Point.idl"
+#include "geometry_msgs/msg/Vector3.idl"
+
+module uav_interfaces {
+  module msg {
+    struct Obstacle {
+      string id;
+
+      geometry_msgs::msg::Point position;
+
+      geometry_msgs::msg::Vector3 velocity;
+
+      float radius;
+
+      float height;
+
+      boolean is_static;
+
+      boolean is_valid;
+
+      float confidence;
+
+      string source_type;
+    };
+  };
+};

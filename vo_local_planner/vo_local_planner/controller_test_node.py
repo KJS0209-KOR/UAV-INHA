@@ -73,8 +73,8 @@ class ControllerNode(Node):
         # ROS Y (Left)    -> PX4 Y (East/Right) 를 맞추기 위해 부호 반전 (-Y)
         # ROS Z (Up)      -> PX4 Z (Down) 를 맞추기 위해 부호 반전 (-Z)
         setpoint_msg.velocity = [
-            self.v_y,      # PX4 North = ROS Forward
-            self.v_x,     # PX4 East = ROS Right (Left의 반대)
+            self.v_x,      # PX4 North = ROS Forward
+            -self.v_y,     # PX4 East = ROS Right (Left의 반대)
             -self.v_z      # PX4 Down = ROS Down (Up의 반대)
         ]
         
