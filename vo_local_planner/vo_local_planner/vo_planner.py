@@ -14,11 +14,11 @@ class VOPlanner(Node):
 
         # waypoint가 1개만 존재한다.
         self.waypoints = [
-            np.array([10.0, 5.0])  # 목표 지점 딱 하나만 설정
+            np.array([-3.0, 32.0])  # 목표 지점 딱 하나만 설정
         ]
         self.current_wp_idx = 0
         self.wp_threshold = 0.5  
-        self.max_speed = 1.0     
+        self.max_speed = 3.0     
 
         # 변수 초기화 (기존 로직 유지)
         self.received_drone_odom = False
@@ -164,4 +164,4 @@ def main(args=None):
         rclpy.shutdown()
 
 if __name__ == '__main__':
-    main()
+    main()  
