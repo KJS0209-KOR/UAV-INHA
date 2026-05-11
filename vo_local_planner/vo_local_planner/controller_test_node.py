@@ -171,11 +171,12 @@ class ControllerNode(Node):
         self.v_z = msg.linear.z
         self.yaw_rate = msg.angular.z
 
-        self.get_logger().info(
-            f"Planner In(PX4 local assumed): "
-            f"x={self.v_x:.2f}, y={self.v_y:.2f}, "
-            f"z={self.v_z:.2f}, yaw_rate={self.yaw_rate:.2f}"
-        )
+        # [로그 1] 플래너에서 메시지가 올 때마다 출력 (통신 확인용)
+        self.get_logger().info(f"📥 Planner In: x={self.v_x:.2f}, y={self.v_y:.2f}")
+
+    def timer_callback(self):
+        """주기적으로 PX4(NED 기준)에 명령 하달"""
+        timestamp = int(self.get_clock().now().nanoseconds / 1000)
 
     def goal_reached_callback(self, msg):
         """
