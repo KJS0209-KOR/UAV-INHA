@@ -47,6 +47,9 @@ class ControllerNode(Node):
         self.v_z = msg.linear.z
         self.yaw_rate = msg.angular.z
 
+        # [로그 1] 플래너에서 메시지가 올 때마다 출력 (통신 확인용)
+        self.get_logger().info(f"📥 Planner In: x={self.v_x:.2f}, y={self.v_y:.2f}")
+
     def timer_callback(self):
         """주기적으로 PX4(NED 기준)에 명령 하달"""
         timestamp = int(self.get_clock().now().nanoseconds / 1000)
@@ -67,6 +70,9 @@ class ControllerNode(Node):
         
         # 위치 제어 미사용 시 NaN 처리
         setpoint_msg.position = [float('nan'), float('nan'), float('nan')]
+
+        v_ned = [self.v_x, -self.v_y, -self.v_z]
+        self.get_logger().info(f"🚀 PX4 Out (NED): N={v_ned[0]:.2f}, E={v_ned[1]:.2f}, D={v_ned[2]:.2f}")
         
         # 🚀 [핵심] ROS ENU -> PX4 NED 좌표 변환
         # ROS X (Forward) -> PX4 X (North/Forward)
