@@ -26,7 +26,6 @@ class VOPlanner(Node):
         self.default_obs_radius = 3.0
         
         # --- [추가 설정: 시간 지평] ---
-        # 몇 초 뒤에 일어날 충돌까지 계산할 것인가? (값이 작을수록 공격적)
         self.time_horizon = 4.0 
 
         self.received_drone_odom = False
@@ -65,31 +64,26 @@ class VOPlanner(Node):
 
     def sample_velocities(self):
         samples = []
-        # 속도 후보군 생성
+        # 속도 후보군 생성 (정밀도를 높이려면 격자 수를 늘리거나 polar sampling 고려)
         for vx in np.linspace(-self.max_speed, self.max_speed, 15):
             for vy in np.linspace(-self.max_speed, self.max_speed, 15):
                 samples.append(np.array([vx, vy]))
         return samples
 
     def is_in_vo(self, candidate_vel, obs):
-        """
-        [핵심 변경] 시간 지평(Time Horizon) 로직이 포함된 VO 판단 함수
-        """
         obs_pos = np.array([obs.position.x, obs.position.y])
         obs_vel = np.array([obs.velocity.x, obs.velocity.y])
         obs_radius = obs.radius if obs.radius > 0.0 else self.default_obs_radius
 
         rel_pos = obs_pos - self.drone_pos
-        rel_vel = candidate_vel - obs_vel # 상대 속도
+        rel_vel = candidate_vel - obs_vel 
 
         dist = np.linalg.norm(rel_pos)
         combined_radius = self.robot_radius + obs_radius
 
-        # 1. 이미 닿아있는 경우
         if dist < combined_radius:
             return True
 
-        # 2. 충돌 원뿔(Collision Cone) 각도 계산
         theta = np.arcsin(np.clip(combined_radius / dist, -1.0, 1.0))
         direction_to_obs = rel_pos / dist
         rel_vel_norm = np.linalg.norm(rel_vel)
@@ -100,13 +94,10 @@ class VOPlanner(Node):
         rel_vel_dir = rel_vel / rel_vel_norm
         angle = np.arccos(np.clip(np.dot(direction_to_obs, rel_vel_dir), -1.0, 1.0))
 
-        # 3. 방향이 충돌 범위 안일 때만 '충돌 시간' 계산
         if angle < theta:
             dist_to_surface = dist - combined_radius
-            # 해당 속도로 계속 가면 몇 초 뒤에 부딪히는가?
             time_to_collision = dist_to_surface / rel_vel_norm
             
-            # 설정한 시간(self.time_horizon)보다 빨리 부딪힐 때만 VO로 간주
             if time_to_collision < self.time_horizon:
                 return True
 
@@ -138,7 +129,6 @@ class VOPlanner(Node):
 
         desired_velocity, dist_to_target, rel_target_pos = self.compute_desired_velocity()
 
-        # 목표 도달 판정
         if dist_to_target < self.wp_threshold:
             self.get_logger().info("★★★ 목표 도달! ★★★")
             self.goal_reached = True
@@ -146,12 +136,10 @@ class VOPlanner(Node):
             self.publish_goal_reached(True)
             return
 
-        # 장애물 정보가 없으면 직진
         if not self.received_obstacles or len(self.current_obstacles) == 0:
             self.publish_velocity(desired_velocity[0], desired_velocity[1])
             return
 
-        # VO 기반 속도 선택
         candidates = self.sample_velocities()
         safe_velocities = []
 
@@ -164,7 +152,6 @@ class VOPlanner(Node):
             if is_safe:
                 safe_velocities.append(v_cand)
 
-        # 최종 속도 결정
         if not safe_velocities:
             final_velocity = np.array([0.0, 0.0])
             self.get_logger().warn("위험: 안전 속도 없음 (정지)")
@@ -179,6 +166,7 @@ class VOPlanner(Node):
         cmd = Twist()
         cmd.linear.x = float(vx)
         cmd.linear.y = float(vy)
+        # 필요 시 고도 유지를 위해 cmd.linear.z 제어 로직 추가 가능
         self.cmd_pub.publish(cmd)
 
     def publish_goal_reached(self, reached):
